@@ -1,22 +1,57 @@
-import { Component } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 
-import { MessageService } from '../../messages/message.service';
+import {MessageService} from '../../messages/message.service';
 
-import { Product } from '../product';
-import { ProductService } from '../product.service';
+import {Product, ProductResolved} from '../product';
+import {ProductService} from '../product.service';
+import {ActivatedRoute, Router} from '@angular/router';
 
 @Component({
   templateUrl: './product-edit.component.html',
   styleUrls: ['./product-edit.component.css']
 })
-export class ProductEditComponent {
+export class ProductEditComponent implements OnInit {
+
   pageTitle = 'Product Edit';
   errorMessage: string;
 
-  product: Product;
+  private currentProduct: Product;
+  private originalProduct: Product;
+
+  private dataIsValid: { [key: string]: boolean } = {};
 
   constructor(private productService: ProductService,
-              private messageService: MessageService) { }
+              private messageService: MessageService,
+              private route: ActivatedRoute,
+              private router: Router) {
+  }
+
+  ngOnInit(): void {
+    this.route.data.subscribe(data => {
+      const resolvedProduct: ProductResolved = data['resolvedData'];
+      this.errorMessage = resolvedProduct.error;
+      this.onProductRetrieved(resolvedProduct.product);
+    });
+  }
+
+  get product(): Product{
+    return this.currentProduct;
+  }
+
+  set product(value: Product){
+    this.currentProduct = value;
+    this.originalProduct = { ...value};
+  }
+
+  get isDirty(): boolean {
+    return JSON.stringify(this.originalProduct) !== JSON.stringify(this.currentProduct);
+  }
+
+  reset(): void {
+    this.currentProduct = null;
+    this.originalProduct = null;
+    this.dataIsValid = null;
+  }
 
   getProduct(id: number): void {
     this.productService.getProduct(id).subscribe({
@@ -54,7 +89,7 @@ export class ProductEditComponent {
   }
 
   saveProduct(): void {
-    if (true === true) {
+    if (this.isValid()) {
       if (this.product.id === 0) {
         this.productService.createProduct(this.product).subscribe({
           next: () => this.onSaveComplete(`The new ${this.product.productName} was saved`),
@@ -76,6 +111,33 @@ export class ProductEditComponent {
       this.messageService.addMessage(message);
     }
 
+    this.reset();
     // Navigate back to the product list
+    this.router.navigate(['/products']);
+  }
+
+  isValid(path?: string): boolean {
+    this.validate();
+    if (path) {
+      return this.dataIsValid[path];
+    }
+
+    return (this.dataIsValid && Object.keys(this.dataIsValid).every(d => this.dataIsValid[d] === true));
+  }
+
+  validate(): void {
+    this.dataIsValid = {};
+
+    if (this.product.productName && this.product.productName.length >= 3 && this.product.productCode) {
+      this.dataIsValid['info'] = true;
+    } else {
+      this.dataIsValid['info'] = false;
+    }
+
+    if (this.product.category && this.product.category.length >= 3) {
+      this.dataIsValid['tags'] = true;
+    } else {
+      this.dataIsValid['tags'] = false;
+    }
   }
 }
